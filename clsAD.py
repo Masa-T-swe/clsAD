@@ -41,17 +41,15 @@ class clsAD:
         self.pTransfer:int = self.TRANSFER_DEVICEBUFFER  # 転送方式(デバイスバッファ)
         self.pMemoryType:int = self.MEMORY_FIFO          # メモリ形式(FIFO)
         self.pCh:list = []                          # チャンネルクラスリスト
-        #self.pRange:list = []                       # 入力レンジ
-        #self.pAverage:list = []                     # 入力平均値
-        # private property
-        #self._lret = ctypes.c_long()               # 戻り値取得用
+        self.pMaxChannel:int = 0                    # 最大チャンネル数
         self._pID = ctypes.c_short()                # デバイスアクセス用ID
-        self._max_channel:int = 0                   # 最大チャンネル数
-        self._initialized:bool = False              # 初期化済フラグ
+        self._initialized:bool = False              # CH初期化済フラグ
         self._status = ctypes.c_long()              # ADステータス
         # サンプリング設定値
-        self._smplsetting:dict = \
-            {"ChannelCount":0, "SamplingRate":0.0, "SamplingCount":0, "ActualSamplingCount":0}
+        self._smplsetting:dict = {
+                "ChannelCount":0, "SamplingRate":0.0, 
+                "SamplingCount":0, "ActualSamplingCount":0, "SampleEventCount":0
+            }
         self._ADdata:list = []                      # 入力データ(Digital)
 
     class clsChannel():
@@ -70,8 +68,7 @@ class clsAD:
             self.pName:str = f"ch{index}"
             self.pData:list = []            # digital data
             self.pValue:list = []           # value data
-            self.pVolt:list = []            # volt data
-            self.pAverage:list = [0.0, 0.0, 0.0,]   # value, volt, digital,
+            self.pAverage:list = [0.0, 0.0,]   # value, digital,
             self.pRange:int = 0             # input range
             self.pMax:float = 10.0          # max value
             self.pMin:float = -10.0         # min value
@@ -82,6 +79,7 @@ class clsAD:
             # private property
             self._count:int = 0             # sampling count
             self._index:int = index         # channel number
+            self._deviceName = ""           # deviceName/exm. "AIO000"
     
         def __str__(self):
             ''' 文字列化メソッド
@@ -100,25 +98,38 @@ class clsAD:
                     Returns: 
                     Note: 
                         .pDataを受け、
-                        .pValue/.pVoltを計算する
+                        .pValueを計算する
+                        ※.pVoltはオミット
             ''' 
             self._count = cnt
             self.pValue = [float] * cnt
-            self.pVolt = [float] * cnt
             self.pData = data
             sumd:float = 0.0    # degital
-            sumv:float = 0.0    # volt
             sum:float = 0.0     # value
             for i in range(cnt):
                 sumd += self.pData[i]
                 self.pValue[i] = self._toValue(self.pData[i])
                 sum += self.pValue[i]
-                self.pVolt[i] = self._toVolt(self.pData[i])
-                sumv += self.pVolt[i]
             self.pAverage[0] = sum / cnt
-            self.pAverage[1] = sumv / cnt
-            self.pAverage[2] = sumd / cnt
+            self.pAverage[1] = sumd / cnt
 
+        def toVolt(self, d:int) -> float:
+            ''' 電圧変換メソッド
+                    Args: 
+                        d(int): digital値
+                    Returns: 
+                        変換後の電圧値
+                    Note: 
+                        _convRangeの返り値と.pResolutionを使用し電圧へ変換する
+                        (ボードによっては電流もある)
+                        ※pVoltをオミットしたのでパブリック化
+            ''' 
+            ret:float = 0
+            reso:float = 2 ** self.pResolution
+            min, max = self._convRange(self.pRange)
+            ret = ((max - min) / reso) * d + min
+            return ret
+            
         def _toValue(self, d:int) -> float:
             ''' 数値変換メソッド
                     Args: 
@@ -137,23 +148,6 @@ class clsAD:
             ### print(f"{max=} : {min=} : {reso=} : {d=}")
             return ret
         
-        def _toVolt(self, d:int) -> float:
-            ''' 電圧変換メソッド
-                    Args: 
-                        d(int): digital値
-                    Returns: 
-                        変換後の電圧値
-                    Note: 
-                        _convRangeの返り値と.pResolutionを使用し電圧へ変換する
-                        (ボードによっては電流もある)
-            ''' 
-            ret:float = 0
-            reso:float = 2 ** self.pResolution
-            min, max = self._convRange(self.pRange)
-            off:float = self.pOffset
-            ret = ((max - min) / reso) * d + min
-            return ret
-            
         def _convRange(self, rng:int) -> (float,float):
             ''' レンジ変換メソッド
                     Args: 
@@ -281,6 +275,7 @@ class clsAD:
         if lret.value == 0:
             self.pOpened = True
             self._initializeAD(deviceName)
+            self._deviceName  = deviceName
         return lret.value
         
     def Close(self) -> int:
@@ -298,7 +293,30 @@ class clsAD:
                 self.pOpened = False
         return lret.value
         
-    def Start(self, smpcnt:int, smprate:int, chcnt:int, sync:bool) -> int:
+    def Reset(self) -> int:
+        ''' リセットメソッド
+                Args: 
+                Returns: 
+                    エラーコード
+                    0以外の場合はエラー
+                Note: 
+        ''' 
+        lret = ctypes.c_long(0)
+        # プロセスリセット/通常使用は推奨されない
+        lret.value = caio.AioResetProcess(self._pID)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        # デバイスリセット
+        lret.value = caio.AioResetDevice(self._pID)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._initializeAD(self._deviceName)
+        lret.value = self.SetRange()
+        return lret.value
+        
+    def Start(self, smpcnt:int, smprate:int, chcnt:int, sync:bool, eventCnt:int=0) -> int:
         ''' A/Dサンプリング開始メソッド
                 Args: 
                     smpcnt(int): サンプリング数
@@ -306,10 +324,16 @@ class clsAD:
                     chcnt(int): 入力チャンネル数
                     sync(bool): 同期フラグ
                                 真の場合は、入力完了まで待ち、データを読み込む
+                    eventCnt(int): サンプルイベント回数、Defaultは0
+                                0以外を指定すると[pIsDataNum]が指定回数で真になる
+                                0の場合は常に偽のまま
                 Returns:
                     エラーコード
                     0以外の場合はエラー
                 Note: 
+                    長時間サンプリングの場合は[sync=True/eventCnt>0]を指定し、
+                    Start後[pIsDataNum]を監視し、適宜mReadを実行する
+                    必要であればStopで停止する
         ''' 
         lret = ctypes.c_long(0)
         
@@ -334,6 +358,13 @@ class clsAD:
             return lret.value
         self._smplsetting["SamplingCount"] = smpcnt     # サンプリング回数
         lret.value = caio.AioSetAiRepeatTimes(self._pID, 1)     # リピート回数 * 1
+        
+        # 指定サンプルイベント回数
+        lret.value = caio.AioSetAiEventSamplingTimes (self._pID, eventCnt)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._smplsetting["SampleEventCount"] = eventCnt     # サンプルイベント回数
 
         # 開始条件設定(ソフトウェア)
         lret.value = caio.AioSetAiStartTrigger(self._pID, 0)
@@ -376,24 +407,16 @@ class clsAD:
                     0以外の場合はエラー
                 Note: 
         ''' 
-        pass
+        lret = ctypes.c_long(0)
+        lret.value = caio.AioStopAi(self._pID)
+        self._ErrorHandler(lret)
+        return lret.value
         
-    def Reset(self) -> int:
-        ''' リセットメソッド
-                Args: 
-                Returns: 
-                    エラーコード
-                    0以外の場合はエラー
-                Note: 
-        ''' 
-        pass
-        
-    def Read(self) -> int:
+    def Read(self) -> (int,int):
         ''' A/Dデータ取得
                 Args: 
                 Returns: 
-                    読み込んだデータ数
-                        チャンネル数 * サンプリング数(になるはず)
+                    エラーコードとサンプリング数を返す
                 Note: 
                     self._ADdata[ch][cnt]に生のデジタル値を取得
         ''' 
@@ -422,7 +445,7 @@ class clsAD:
         for i in range(ch):     # clsChannelにデータをセット
             self.pCh[i].SetData(self._ADdata[i], cnt)
             
-        return ch * cnt
+        return lret.value, cnt  # ErrorCode, SamplingCount
         
     def SetRange(self) -> int:
         ''' レンジ設定メソッド
@@ -432,13 +455,15 @@ class clsAD:
                     0以外の場合はエラー
                 Note: 
                     cslChannel.pRangeをボードに設定
+                    _initializedを真に設定
         ''' 
         lret = ctypes.c_long(0)
-        for i in range(self._max_channel):
+        for i in range(self.pMaxChannel):
             lret.value = caio.AioSetAiRange(self._pID, i, self.pCh[i].pRange)
             self._ErrorHandler(lret)
             if lret.value:
                 return lret.value
+        self._initialized = True
         return lret.value
 
     def pIsBusy(self) -> bool:
@@ -539,20 +564,22 @@ class clsAD:
         deviceName = ctypes.create_string_buffer(256)   # exm."AIO000"
         device = ctypes.create_string_buffer(256)       # exm."AD12-64(PCI)"
         
-        lret.value = caio.AioResetProcess(self._pID)      # プロセスリセット
+        if __debug__:      # プロセスリセット/通常使用は推奨されない
+            lret.value = caio.AioResetProcess(self._pID)
         # デバイスリセット
         lret.value = caio.AioResetDevice(self._pID)
         # デバイス名称の取得
-        i = 0
-        while i < 255:
-            # ボードが複数の場合に対応
-            lret.value = caio.AioQueryDeviceName (i,deviceName ,device )
-            i += 1
-            if lret.value:
-                self._ErrorHandler(lret)
-            elif deviceName.value.decode('sjis') == devnm:
-                self.pName = device.value.decode('sjis')
-                break
+        if not self._initialized:       # 初回のみ
+            i = 0
+            while i < 255:
+                # ボードが複数の場合に対応
+                lret.value = caio.AioQueryDeviceName (i,deviceName ,device )
+                i += 1
+                if lret.value:
+                    self._ErrorHandler(lret)
+                elif deviceName.value.decode('sjis') == devnm:
+                    self.pName = device.value.decode('sjis')
+                    break
         
         # 入力方式(差動)
         lret.value = caio.AioSetAiInputMethod(self._pID, self.pInputMethod)
@@ -573,59 +600,20 @@ class clsAD:
         maxch = ctypes.c_short()
         lret.value = caio.AioGetAiMaxChannels(self._pID, ctypes.byref(maxch))
         self._ErrorHandler(lret)
-        self._max_channel = maxch.value
-        # clsChannelのインスタンス化
-        self.pCh = [self.clsChannel] * self._max_channel
-        for i in range(self._max_channel):     # 
-            self.pCh[i] = self.clsChannel(i)
-            self.pCh[i].pResolution = self._reso.value
+        self.pMaxChannel = maxch.value
+        if not self._initialized:       # 初回のみ
+            # clsChannelのインスタンス化
+            self.pCh = [self.clsChannel] * self.pMaxChannel
+            for i in range(self.pMaxChannel): 
+                self.pCh[i] = self.clsChannel(i)
+                self.pCh[i].pResolution = self._reso.value
 
-        # ここから下はボードごとに変更の必要があるかも
-        ''' 入力レンジ
-        If _initialized = False:
-            self.pRange = [0] * self._max_channel  # 0 = +/-10V
-            # デフォルトレンジの取得
-            AiRng = ctypes.c_short()
-            for i in range(self._max_channel):
-                lret.value = caio.AioGetAiRange (self._pID, i, ctypes.byref(AiRng) )
-                if lret.value == 0:
-                    self.pRange[i] = AiRng
-                else:
-                    self._ErrorHandler(lret)
-                    return lret
-        else:
-            # レンジの設定
-            For i = 0 To ch_max - 1
-                re = caio.AioSetAiRange(self._pID, CShort(i), CShort(range(i)))
-                If re <> adSUCCESS Then
-                    ErrorHandler(re, "AioSetAiRange@mGetInfo(" & i & ")")
-                    Return (re)
-                End If
-            Next i
-        End If
-        '''
-        
         # クロック種別(内部クロック固定)
         lret.value = caio.AioSetAiClockType(self._pID, self.CLOCK_INTERNAL)
         self._ErrorHandler(lret)
         if lret.value:
             return lret.value
 
-        ''' データバッファの初期化
-        If Initialized = False Then
-            # 配列の初期化
-            #ch_cnt = mx
-            ReDim chMin(ch_max)
-            ReDim chMax(ch_max)
-            ReDim chOff(ch_max)
-            # Masa.T. 2012/12/26
-            ReDim chnm(ch_max)
-            ReDim fmt(ch_max)
-            ReDim unit(ch_max)
-            # Masa.T.
-            ReDim ch0Coef(ch_max)   # Masa.T. 2014/06/02
-        End If
-        '''
         return lret.value
 
     def _GetStatus(self, stat:int) -> bool:
