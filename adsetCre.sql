@@ -1,5 +1,5 @@
 CREATE TABLE ADset (
-	ch INTEGER PRIMARY KEY,
+	ch INT PRIMARY KEY NOT NULL,
 	name TEXT,
 	range INTEGER,
 	valueMin REAL,
@@ -7,4 +7,4 @@ CREATE TABLE ADset (
 	offset REAL,
 	format TEXT,
 	unit TEXT
-	);
+);

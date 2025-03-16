@@ -101,7 +101,7 @@ def main():
     ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_SYNC)
     dbgprint(f"Start -> {ret} : {cAD.pErrorStr}")
     for i in range(ch):
-        print(f"    ch{i} : {cAD.pCh[i]} {cAD.pCh[i].pUnit}")
+        print(f"    {cAD.pCh[i].pName} : {cAD.pCh[i]} {cAD.pCh[i].pUnit}")
     dbgprint(f"A/D Input Time = {"%.3f" % LapStop()} sec")
 
     # file output(for debug)

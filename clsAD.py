@@ -1,13 +1,13 @@
-''' clsAD A/D入力クラス
-        Note:
-            Contec API-AIO(WDM) Ver.8.50対応
-''' 
 # coding : utf-8
 import ctypes
 import ctypes.wintypes
 import caio
 
 class clsAD:
+    ''' clsAD A/D入力クラス
+            Note:
+                Contec API-AIO(WDM) Ver.8.50対応
+    ''' 
     
     # CONSTs
     # 入力モード:pInputMethod
@@ -55,39 +55,57 @@ class clsAD:
         self._ADdata:list = []                      # 入力データ(Digital)
 
     class clsChannel():
+        ''' clsChannel A/Dチャンネルクラス
+                Note: 
+        ''' 
         def __init__(self, index:int):
             ''' clsChannel コンストラクタ
                     Args: 
+                        index(int): チャンネル番号(0~)
                     Returns: 
                     Note: 
                         Property初期化
             ''' 
             # public property
-            self.pName:str = ""
-            self.pData:list = []
-            self.pValue:list = []
-            self.pVolt:list = []
+            self.pName:str = f"ch{index}"
+            self.pData:list = []            # digital data
+            self.pValue:list = []           # value data
+            self.pVolt:list = []            # volt data
             self.pAverage:list = [0.0, 0.0, 0.0,]   # value, volt, digital,
-            self.pRange:int = 0
-            self.pMax:float = 10.0
-            self.pMin:float = -10.0
-            self.pOffset:float = 0.0
-            self.pFormat:str = "{0:.3f}"
-            self.pUnit:str = "V"
-            self.pResolution:int = 12   # bit数
+            self.pRange:int = 0             # input range
+            self.pMax:float = 10.0          # max value
+            self.pMin:float = -10.0         # min value
+            self.pOffset:float = 0.0        # value offset
+            self.pFormat:str = "{0:.3f}"    # format string (use str.format)
+            self.pUnit:str = "V"            # unit of value
+            self.pResolution:int = 12       # bitwise(10|12|16|0)
             # private property
-            self._count:int = 0
-            self._index:int = index
+            self._count:int = 0             # sampling count
+            self._index:int = index         # channel number
     
         def __str__(self):
+            ''' 文字列化メソッド
+                    Args: 
+                    Returns: 
+                        .pAverage[0]の内容を返す
+                    Note: 
+            ''' 
             return self.pFormat.format(self.pAverage[0])# + self.pUnit
     
         def SetData(self, data:list, cnt:int):
+            ''' 各データ設定メソッド
+                    Args: 
+                        data(list): Digital値のlist
+                        cnt(int): dataの個数
+                    Returns: 
+                    Note: 
+                        .pDataを受け、
+                        .pValue/.pVoltを計算する
+            ''' 
             self._count = cnt
             self.pValue = [float] * cnt
             self.pVolt = [float] * cnt
             self.pData = data
-            ### print(self.pData)
             sumd:float = 0.0    # degital
             sumv:float = 0.0    # volt
             sum:float = 0.0     # value
@@ -100,9 +118,16 @@ class clsAD:
             self.pAverage[0] = sum / cnt
             self.pAverage[1] = sumv / cnt
             self.pAverage[2] = sumd / cnt
-            ### print(f"ave={self.pAverage} {sum}:{sumv}:{sumd}")
 
         def _toValue(self, d:int) -> float:
+            ''' 数値変換メソッド
+                    Args: 
+                        d(int): digital値
+                    Returns: 
+                        変換後の数値
+                    Note: 
+                        .pMin/.pMax/.pOffset/.pResolutionを使用し数値へ変換する
+            ''' 
             ret:float = 0
             reso:float = 2 ** self.pResolution
             max:float = self.pMax
@@ -113,18 +138,36 @@ class clsAD:
             return ret
         
         def _toVolt(self, d:int) -> float:
+            ''' 電圧変換メソッド
+                    Args: 
+                        d(int): digital値
+                    Returns: 
+                        変換後の電圧値
+                    Note: 
+                        _convRangeの返り値と.pResolutionを使用し電圧へ変換する
+                        (ボードによっては電流もある)
+            ''' 
             ret:float = 0
             reso:float = 2 ** self.pResolution
             min, max = self._convRange(self.pRange)
             off:float = self.pOffset
-            ret = ((max - min) / reso) * d + min + off
+            ret = ((max - min) / reso) * d + min
             return ret
             
         def _convRange(self, rng:int) -> (float,float):
+            ''' レンジ変換メソッド
+                    Args: 
+                        rng(int): レンジ指定値
+                            (0-14|50-62|100-102|150)
+                    Returns: 
+                        指定レンジの(最小値,最大値)を返す
+                    Note: 
+                        一応、全レンジ対応(してるはず)
+            ''' 
             mx:float = 10.0
             mn:float = -10.0
             match rng:
-                case caio.PM10:       # +/-10V
+                case caio.PM10:       # +/-10V          :=0
                     mx:float = 10.0
                     mn:float = mx * -1
                 case caio.PM5:        # +/-5V
@@ -169,7 +212,7 @@ class clsAD:
                 case caio.PM001:      # +/-0.01V
                     mx:float = 0.01
                     mn:float = mx * -1
-                case caio.P10:        # 0 ~ 10V
+                case caio.P10:        # 0 ~ 10V     :=50
                     mx:float = 10.0
                     mn:float = 0.0
                 case caio.P5:         # 0 ~ 5V
@@ -208,7 +251,7 @@ class clsAD:
                 case caio.P001:       # 0 ~ 0.01V
                     mx:float = 0.01
                     mn:float = 0.0
-                case caio.P20MA:      # 0 ~ 20mA
+                case caio.P20MA:      # 0 ~ 20mA        :=100
                     mx:float = 20.0
                     mn:float = 0.0
                 case caio.P4TO20MA:   # 4 ~ 20mA
@@ -217,11 +260,12 @@ class clsAD:
                 case caio.PM20MA:     # +/-20mA
                     mx:float = 20.0
                     mn:float = mx * -1
-                case caio.P1TO5:      # 1 ~ 5V
+                case caio.P1TO5:      # 1 ~ 5V          :=150
                     mx:float = 5.0
                     mn:float = 1.0
             return mn,mx
-            
+        # end clsChannel
+        
     def Open(self, deviceName:str) -> int:
         ''' ボードオープンメソッド
                 Args: 
@@ -239,6 +283,245 @@ class clsAD:
             self._initializeAD(deviceName)
         return lret.value
         
+    def Close(self) -> int:
+        ''' ボードクローズメソッド
+                Args: 
+                Returns: 
+                    エラーコード
+                Note: 
+        ''' 
+        lret = ctypes.c_long(0)
+        if self.pOpened:
+            lret.value = caio.AioExit(self._pID)
+            self._ErrorHandler(lret)
+            if lret.value == 0:
+                self.pOpened = False
+        return lret.value
+        
+    def Start(self, smpcnt:int, smprate:int, chcnt:int, sync:bool) -> int:
+        ''' A/Dサンプリング開始メソッド
+                Args: 
+                    smpcnt(int): サンプリング数
+                    smprate(int): サンプリングレート(μsec/1000usec==1msec)
+                    chcnt(int): 入力チャンネル数
+                    sync(bool): 同期フラグ
+                                真の場合は、入力完了まで待ち、データを読み込む
+                Returns:
+                    エラーコード
+                    0以外の場合はエラー
+                Note: 
+        ''' 
+        lret = ctypes.c_long(0)
+        
+        # 入力チャンネル数設定
+        lret.value = caio.AioSetAiChannels(self._pID, chcnt)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._smplsetting["ChannelCount"] = chcnt   # チャンネル数
+
+        # サンプリングレート設定
+        lret.value = caio.AioSetAiSamplingClock(self._pID, smprate)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._smplsetting["SamplingRate"] = smprate # サンプリングレート
+
+        # サンプリング数設定
+        lret.value = caio.AioSetAiStopTimes(self._pID, smpcnt)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._smplsetting["SamplingCount"] = smpcnt     # サンプリング回数
+        lret.value = caio.AioSetAiRepeatTimes(self._pID, 1)     # リピート回数 * 1
+
+        # 開始条件設定(ソフトウェア)
+        lret.value = caio.AioSetAiStartTrigger(self._pID, 0)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+
+        # 停止条件設定(設定回数)
+        lret.value = caio.AioSetAiStopTrigger(self._pID, 0)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+
+        # メモリリセット
+        lret.value = caio.AioResetAiMemory(self._pID)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+
+        # 変換開始
+        lret.value = caio.AioStartAi(self._pID)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+            
+        if sync:    # 同期入力
+            while self.pIsBusy():
+                if not self.pIsBusy():
+                    break
+
+            self.Read()
+
+        return lret.value
+    
+    def Stop(self) -> int:
+        ''' A/Dサンプリング停止メソッド
+                Args: 
+                Returns: 
+                    エラーコード
+                    0以外の場合はエラー
+                Note: 
+        ''' 
+        pass
+        
+    def Reset(self) -> int:
+        ''' リセットメソッド
+                Args: 
+                Returns: 
+                    エラーコード
+                    0以外の場合はエラー
+                Note: 
+        ''' 
+        pass
+        
+    def Read(self) -> int:
+        ''' A/Dデータ取得
+                Args: 
+                Returns: 
+                    読み込んだデータ数
+                        チャンネル数 * サンプリング数(になるはず)
+                Note: 
+                    self._ADdata[ch][cnt]に生のデジタル値を取得
+        ''' 
+        lret = ctypes.c_long()
+        smplcnt = ctypes.c_long()
+        # サンプリング回数の取得
+        lret.value = caio.AioGetAiSamplingCount (self._pID, ctypes.byref(smplcnt))
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        self._smplsetting["ActualSamplingCount"] = smplcnt.value    # 実サンプリング回数
+        # データ取得
+        cnt = self._smplsetting["ActualSamplingCount"]
+        ch = self._smplsetting["ChannelCount"]
+        AiDataType = ctypes.c_long * (cnt * ch)
+        AiData = AiDataType()
+        lret.value = caio.AioGetAiSamplingData (self._pID, ctypes.byref(smplcnt), AiData)
+        self._ErrorHandler(lret)
+        if lret.value:
+            return lret.value
+        # self._ADdata:list = [[0]*cnt] * ch この宣言の仕方では想定どうりに動かない
+        self._ADdata = [[0] * cnt for i in range(ch)]  # _ADdata[ch][cnt]
+        for i in range(ch):
+            for j in range(cnt):
+                self._ADdata[i][j] = AiData[(j * ch) + i]
+        for i in range(ch):     # clsChannelにデータをセット
+            self.pCh[i].SetData(self._ADdata[i], cnt)
+            
+        return ch * cnt
+        
+    def SetRange(self) -> int:
+        ''' レンジ設定メソッド
+                Args: 
+                Returns: 
+                    エラーコード
+                    0以外の場合はエラー
+                Note: 
+                    cslChannel.pRangeをボードに設定
+        ''' 
+        lret = ctypes.c_long(0)
+        for i in range(self._max_channel):
+            lret.value = caio.AioSetAiRange(self._pID, i, self.pCh[i].pRange)
+            self._ErrorHandler(lret)
+            if lret.value:
+                return lret.value
+        return lret.value
+
+    def pIsBusy(self) -> bool:
+        ''' デバイス動作中
+                Args: 
+                Returns: bool
+                Note: 
+                    変換動作中であれば真
+        ''' 
+        return self._GetStatus(caio.AIS_BUSY)
+        
+    def pIsSttTrgr(self) -> bool:
+        ''' 開始トリガ待ち
+                Args: 
+                Returns: bool
+                Note: 
+                    変換開始トリガ待ちであれば真
+        ''' 
+        return self._GetStatus(caio.AIS_START_TRG)
+        
+    def pIsDataNum(self) -> bool:
+        ''' 指定サンプリング回数格納
+                Args: 
+                Returns: bool
+                Note: 
+                    指定回数のサンプリングが済んでいれば真
+        ''' 
+        return self._GetStatus(caio.AIS_DATA_NUM)
+        
+    def pIsOfErr(self) -> bool:
+        ''' オーバーフロー
+                Args: 
+                Returns: bool
+                Note: 
+                    高機能アナログ入力を実行中、メモリのすべてに変換データが格納され、
+                    これ以上データが格納できない状態で
+                    さらに変換データを格納しようとすると発生します。
+
+                    ・メモリ形式がFIFOの場合、変換が停止します
+                    ・メモリ形式がRINGの場合、変換は継続し過去のデータは上書きされます
+        ''' 
+        return self._GetStatus(caio.AIS_OFERR)
+     
+    def pIsScErr(self) -> bool:
+        ''' サンプリングクロック周期エラー
+                Args: 
+                Returns: bool
+                Note: 
+                    サンプリングクロック周期が速すぎるために起きるエラーです。
+                    このエラーが発生すると変換は停止します。
+        ''' 
+        return self._GetStatus(caio.AIS_SCERR)
+        
+    def pIsAiErr(self) -> bool:
+        ''' A/D変換エラー
+                Args: 
+                Returns: bool
+                Note: 
+                    デバイスの変換中ステータスがOFFにならない状態（変換終了しない状態）が
+                    長く続いた場合、デバイスドライバは動作異常と判断してこのステータスをONにします。
+
+                    通常このステータスがONになることはありませんが、万一発生する場合は、
+                    テクニカルサポートセンターへお問い合わせください。
+                    デバイスが故障している可能性があります。
+        ''' 
+        return self._GetStatus(caio.AIS_AIERR)
+        
+    def pIsDrvErr(self) -> bool:
+        ''' ドライバスペックエラー
+                Args: 
+                Returns: bool
+                Note: 
+                    ドライバでの処理が間に合わない場合に発生するエラーです。
+
+                    このエラーはサンプリングクロック周期エラー【20000H】と同時に発生し、
+                    結果、【A0000H】となります。
+                    なお、デバイスドライバの処理時間は環境により異なります。
+
+                    ソフトウェアメモリを使用するデバイスの場合、
+                    変換には [デバイスの変換速度＋デバイスドライバの処理時間] が必要になります。
+        ''' 
+        return self._GetStatus(caio.AIS_DRVERR)
+    
     def _initializeAD(self, devnm:str):
         ''' ボード初期化メソッド
                 Args: 
@@ -291,6 +574,7 @@ class clsAD:
         lret.value = caio.AioGetAiMaxChannels(self._pID, ctypes.byref(maxch))
         self._ErrorHandler(lret)
         self._max_channel = maxch.value
+        # clsChannelのインスタンス化
         self.pCh = [self.clsChannel] * self._max_channel
         for i in range(self._max_channel):     # 
             self.pCh[i] = self.clsChannel(i)
@@ -344,147 +628,6 @@ class clsAD:
         '''
         return lret.value
 
-    def Close(self) -> int:
-        ''' ボードクローズメソッド
-                Args: 
-                Returns: 
-                    エラーコード
-                Note: 
-        ''' 
-        lret = ctypes.c_long(0)
-        if self.pOpened:
-            lret.value = caio.AioExit(self._pID)
-            self._ErrorHandler(lret)
-            if lret.value == 0:
-                self.pOpened = False
-        return lret.value
-        
-    def Start(self, smpcnt:int, smprate:int, chcnt:int, sync:bool) -> int:
-        ''' A/Dサンプリング開始メソッド
-                Args: 
-                    smpcnt(int): サンプリング数
-                    smprate(int): サンプリングレート(μsec/1000usec==1msec)
-                    chcnt(int): 入力チャンネル数
-                    sync(bool): 同期フラグ
-                                真の場合は、入力完了まで待ち、データを読み込む
-                Returns:
-                    エラーコード
-                    0以外の場合はエラー
-                Note: 
-        ''' 
-        lret = ctypes.c_long(0)
-        
-        # 入力チャンネル数設定
-        lret.value = caio.AioSetAiChannels(self._pID, chcnt)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-        self._smplsetting["ChannelCount"] = chcnt   # チャンネル数
-
-        # サンプリングレート設定
-        #smpclk = ctypes.c_float()
-        #smpclk.value = smprate
-        lret.value = caio.AioSetAiSamplingClock(self._pID, smprate)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-        self._smplsetting["SamplingRate"] = smprate # サンプリングレート
-
-        # サンプリング数設定
-        lret.value = caio.AioSetAiStopTimes(self._pID, smpcnt)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-        self._smplsetting["SamplingCount"] = smpcnt     # サンプリング回数
-        lret.value = caio.AioSetAiRepeatTimes(self._pID, 1)     # リピート回数
-
-        # 開始条件設定(ソフトウェア)
-        lret.value = caio.AioSetAiStartTrigger(self._pID, 0)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-
-        # 停止条件設定(設定回数)
-        lret.value = caio.AioSetAiStopTrigger(self._pID, 0)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-
-        # メモリリセット
-        lret.value = caio.AioResetAiMemory(self._pID)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-
-        # 変換開始
-        lret.value = caio.AioStartAi(self._pID)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-            
-        if sync:    # 同期入力
-            while self.pIsBusy():
-                if not self.pIsBusy():
-                    break
-
-            self.Read()
-
-        return lret.value
-    
-    def Stop(self) -> int:
-        pass
-        
-    def Reset(self) -> int:
-        pass
-        
-    def Read(self) -> int:
-        ''' A/Dデータ取得
-                Args: 
-                Returns: 
-                    読み込んだデータ数
-                        チャンネル数 * サンプリング数(になるはず)
-                Note: 
-                    self._ADdata[ch][cnt]に生のデジタル値を取得
-                    self.pAverage[ch]にデジタル値の平均を取得
-                    debug用にcsvを出力
-        ''' 
-        lret = ctypes.c_long()
-        smplcnt = ctypes.c_long()
-        # サンプリング回数の取得
-        lret.value = caio.AioGetAiSamplingCount (self._pID, ctypes.byref(smplcnt))
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-        self._smplsetting["ActualSamplingCount"] = smplcnt.value    # 実サンプリング回数
-        # データ取得
-        cnt = self._smplsetting["ActualSamplingCount"]
-        ch = self._smplsetting["ChannelCount"]
-        AiDataType = ctypes.c_long * (cnt * ch)
-        AiData = AiDataType()
-        lret.value = caio.AioGetAiSamplingData (self._pID, ctypes.byref(smplcnt), AiData)
-        self._ErrorHandler(lret)
-        if lret.value:
-            return lret.value
-        # self._ADdata:list = [[0]*cnt] * ch この宣言の仕方では想定どうりに動かない
-        self._ADdata = [[0] * cnt for i in range(ch)]  # _ADdata[ch][cnt]
-        for i in range(ch):
-            for j in range(cnt):
-                self._ADdata[i][j] = AiData[(j * ch) + i]
-        for i in range(ch):
-            self.pCh[i].SetData(self._ADdata[i], cnt)
-            
-        return ch * cnt
-        
-    def SetRange(self) -> int:
-        # レンジの設定
-        lret = ctypes.c_long(0)
-        for i in range(self._max_channel):
-            lret.value = caio.AioSetAiRange(self._pID, i, self.pCh[i].pRange)
-            self._ErrorHandler(lret)
-            if lret.value:
-                return lret.value
-        return lret.value
-
     def _GetStatus(self, stat:int) -> bool:
         ''' A/Dステータス取得メソッド
                 Args: 
@@ -506,84 +649,6 @@ class clsAD:
         self._ErrorHandler(lret)
         return (self._status.value & stat) != 0
         
-    def pIsBusy(self) -> bool:
-        ''' デバイス動作中
-                Args: 
-                Returns: 
-                Note: 
-        ''' 
-        return self._GetStatus(caio.AIS_BUSY)
-        
-    def pIsSttTrgr(self) -> bool:
-        ''' 開始トリガ待ち
-                Args: 
-                Returns: 
-                Note: 
-        ''' 
-        return self._GetStatus(caio.AIS_START_TRG)
-        
-    def pIsDataNum(self) -> bool:
-        ''' 指定サンプリング回数格納
-                Args: 
-                Returns: 
-                Note: 
-        ''' 
-        return self._GetStatus(caio.AIS_DATA_NUM)
-        
-    def pIsOfErr(self) -> bool:
-        ''' オーバーフロー
-                Args: 
-                Returns: 
-                Note: 
-                    高機能アナログ入力を実行中、メモリのすべてに変換データが格納され、
-                    これ以上データが格納できない状態で
-                    さらに変換データを格納しようとすると発生します。
-
-                    ・メモリ形式がFIFOの場合、変換が停止します
-                    ・メモリ形式がRINGの場合、変換は継続し過去のデータは上書きされます
-        ''' 
-        return self._GetStatus(caio.AIS_OFERR)
-     
-    def pIsScErr(self) -> bool:
-        ''' サンプリングクロック周期エラー
-                Args: 
-                Returns: 
-                Note: 
-                    サンプリングクロック周期が速すぎるために起きるエラーです。
-                    このエラーが発生すると変換は停止します。
-        ''' 
-        return self._GetStatus(caio.AIS_SCERR)
-        
-    def pIsAiErr(self) -> bool:
-        ''' A/D変換エラー
-                Args: 
-                Returns: 
-                Note: 
-                    デバイスの変換中ステータスがOFFにならない状態（変換終了しない状態）が
-                    長く続いた場合、デバイスドライバは動作異常と判断してこのステータスをONにします。
-
-                    通常このステータスがONになることはありませんが、万一発生する場合は、
-                    テクニカルサポートセンターへお問い合わせください。
-                    デバイスが故障している可能性があります。
-        ''' 
-        return self._GetStatus(caio.AIS_AIERR)
-        
-    def pIsDrvErr(self) -> bool:
-        ''' ドライバスペックエラー
-                Args: 
-                Returns: 
-                Note: 
-                    ドライバでの処理が間に合わない場合に発生するエラーです。
-
-                    このエラーはサンプリングクロック周期エラー【20000H】と同時に発生し、
-                    結果、【A0000H】となります。
-                    なお、デバイスドライバの処理時間は環境により異なります。
-
-                    ソフトウェアメモリを使用するデバイスの場合、
-                    変換には [デバイスの変換速度＋デバイスドライバの処理時間] が必要になります。
-        ''' 
-        return self._GetStatus(caio.AIS_DRVERR)
-    
     def _ErrorHandler(self, ecode:ctypes.c_long) -> str:
         ''' エラー文字列取得メソッド
                 Args: 
