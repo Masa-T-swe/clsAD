@@ -97,8 +97,8 @@ def main():
     # 非同期入力
     LapStart()
     dbgprint("Sampling Start")
-    cnt = 2000
-    ch = 16
+    cnt = 5000
+    ch = 32
     ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_ASYNC)
     dbgprint(f"StartAsync -> {ret} : {cAD.pErrorStr}")
     i = 0
