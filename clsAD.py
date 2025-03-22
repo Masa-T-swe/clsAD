@@ -1,7 +1,11 @@
 # coding : utf-8
+import sys
+#from functools import reduce
+
 import ctypes
 import ctypes.wintypes
 import caio
+import numpy as np
 
 class clsAD:
     ''' clsAD A/D入力クラス
@@ -66,8 +70,9 @@ class clsAD:
             ''' 
             # public property
             self.pName:str = f"ch{index}"
-            self.pData:list = []            # digital data
-            self.pValue:list = []           # value data
+            self.pData:np.array = None      # digital data
+            #self.pValue:list = []     # value data
+            self.pValue:np.array = None     # value data
             self.pAverage:list = [0.0, 0.0,]   # value, digital,
             self.pRange:int = 0             # input range
             self.pMax:float = 10.0          # max value
@@ -102,16 +107,18 @@ class clsAD:
                         ※.pVoltはオミット
             ''' 
             self._count = cnt
-            self.pValue = [float] * cnt
-            self.pData = data
-            sumd:float = 0.0    # degital
-            sum:float = 0.0     # value
-            for i in range(cnt):
-                sumd += self.pData[i]
-                self.pValue[i] = self._toValue(self.pData[i])
-                sum += self.pValue[i]
-            self.pAverage[0] = sum / cnt
-            self.pAverage[1] = sumd / cnt
+            self.pData = np.array(data)
+            self.pAverage[1] = self.pData.sum() / self.pData.size   # digital ave.
+            self.pAverage[0] = self._toValue(self.pAverage[1])      # value ave
+            self.pValue = self._toValue(self.pData)                 # value
+            #sum:float = reduce(lambda x,y: x + y, self.pData)   
+            #self.pValue = list(map(self._toValue, self.pData))  # value
+            #sumd:float = 0.0    # degital
+            #self.pValue = [float] * cnt
+            #for i in range(cnt):
+            #    sumd += self.pData[i]
+            #    self.pValue[i] = self._toValue(self.pData[i])
+            #    sum += self.pValue[i]
 
         def toVolt(self, d:int) -> float:
             ''' 電圧変換メソッド
@@ -140,11 +147,12 @@ class clsAD:
                         .pMin/.pMax/.pOffset/.pResolutionを使用し数値へ変換する
             ''' 
             ret:float = 0
-            reso:float = 2 ** self.pResolution
-            max:float = self.pMax
-            min:float = self.pMin
-            off:float = self.pOffset
-            ret = ((max - min) / reso) * d + min + off
+            #reso:float = 2 ** self.pResolution
+            #max:float = self.pMax
+            #min:float = self.pMin
+            #off:float = self.pOffset
+            #ret = ((max - min) / reso ) * d + min + off
+            ret = ((self.pMax - self.pMin) / (2 ** self.pResolution) ) * d + self.pMin + self.pOffset
             ### print(f"{max=} : {min=} : {reso=} : {d=}")
             return ret
         
@@ -442,7 +450,7 @@ class clsAD:
         for i in range(ch):
             for j in range(cnt):
                 self._ADdata[i][j] = AiData[(j * ch) + i]
-        for i in range(ch):     # clsChannelにデータをセット
+        #for i in range(ch):     # clsChannelにデータをセット
             self.pCh[i].SetData(self._ADdata[i], cnt)
             
         return lret.value, cnt  # ErrorCode, SamplingCount
@@ -648,6 +656,8 @@ class clsAD:
         ''' 
         error_buf = ctypes.create_string_buffer(256)
         caio.AioGetErrorString(ecode, error_buf)
-        self.pErrorStr = error_buf.value.decode('sjis')
+        self.pErrorStr = f"[{ecode.value}] {error_buf.value.decode('sjis')}"
+        if ecode.value != 0:
+            print(self.pErrorStr, file=sys.stderr)
         return self.pErrorStr
 

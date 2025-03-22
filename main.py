@@ -87,20 +87,20 @@ def main():
     global cAD
     cAD = clsAD.clsAD()
     ret = cAD.Open("AIO000")
-    dbgprint(f"Open -> {ret} : {cAD.pErrorStr}")
+    dbgprint(f"Open -> {cAD.pErrorStr}")
     dbgprint(f"{cAD.pName}:{cAD.pMaxChannel}")
     
     ADset("adtest.db")
     ret = cAD.SetRange()
-    dbgprint(f"SetRange -> {ret} : {cAD.pErrorStr}")
+    dbgprint(f"SetRange -> {cAD.pErrorStr}")
     
     # 非同期入力
     LapStart()
     dbgprint("Sampling Start")
-    cnt = 2000
-    ch = 16
+    cnt = 5000
+    ch = 32
     ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_ASYNC)
-    dbgprint(f"StartAsync -> {ret} : {cAD.pErrorStr}")
+    dbgprint(f"StartAsync -> {cAD.pErrorStr}")
     i = 0
     while cAD.pIsBusy():
         i += 1
@@ -109,7 +109,7 @@ def main():
         time.sleep(0.5) # sec
     print("")
     ret,cnt = cAD.Read()
-    dbgprint(f"Read -> {ret} : {cAD.pErrorStr}/smple -> {cnt}")
+    dbgprint(f"Read -> {cAD.pErrorStr} / smple -> {cnt}")
     dbgprint("Sampling End")
     
     for i in range(ch):
