@@ -93,28 +93,37 @@ def main():
     ADset("adtest.db")
     ret = cAD.SetRange()
     dbgprint(f"SetRange -> {cAD.pErrorStr}")
-    
-    # 非同期入力
-    LapStart()
-    dbgprint("Sampling Start")
-    cnt = 5000
-    ch = 32
-    ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_ASYNC)
-    dbgprint(f"StartAsync -> {cAD.pErrorStr}")
-    i = 0
-    while cAD.pIsBusy():
-        i += 1
-        if (i % 10000) != 0:
-            print(".", end="")
-        time.sleep(0.5) # sec
-    print("")
-    ret,cnt = cAD.Read()
-    dbgprint(f"Read -> {cAD.pErrorStr} / smple -> {cnt}")
-    dbgprint("Sampling End")
-    
-    for i in range(ch):
-        print(f"    {cAD.pCh[i].pName} : {cAD.pCh[i]} {cAD.pCh[i].pUnit}")
-    dbgprint(f"A/D Input Time = {"%.3f" % LapStop()} sec")
+
+    key = ""
+    while key.lower() != "q":
+        key = input("Count? > ")
+        if key.isdecimal():
+            cnt = int(key)
+            key = input("Channels? > ")
+            if key.isdecimal():
+                ch = int(key)
+            
+                # 非同期入力
+                LapStart()
+                dbgprint("Sampling Start")
+                #cnt = 5000
+                #ch = 32
+                ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_ASYNC)
+                dbgprint(f"StartAsync -> {cAD.pErrorStr}")
+                i = 0
+                while cAD.pIsBusy():
+                    i += 1
+                    if (i % 10000) != 0:
+                        print(".", end="")
+                    time.sleep(0.5) # sec
+                print("")
+                ret,cnt = cAD.Read()
+                dbgprint(f"Read -> {cAD.pErrorStr} / smple -> {cnt}")
+                dbgprint("Sampling End")
+                
+                for i in range(ch):
+                    print(f"    {cAD.pCh[i].pName} : {cAD.pCh[i]} {cAD.pCh[i].pUnit}")
+                dbgprint(f"A/D Input Time = {"%.3f" % LapStop()} sec")
 
     # file output(for debug)
     buf = ""
