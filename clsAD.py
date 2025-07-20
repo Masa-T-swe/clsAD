@@ -60,6 +60,42 @@ class clsAD:
         ''' clsChannel A/Dチャンネルクラス
                 Note: 
         ''' 
+        # レンジ変換辞書 2025/07/20 
+        _RANGE_MAP = {
+            caio.PM10: (-10.0, 10.0),           # +/-10V        :=0
+            caio.PM5: (-5.0, 5.0),              # +/-5V
+            caio.PM25: (-2.5, 2.5),             # +/-2.5V
+            caio.PM125: (-1.25, 1.25),          # +/-1.25V
+            caio.PM1: (-1.0, 1.0),              # +/-1V
+            caio.PM0625: (-0.625, 0.625),       # +/-0.625V
+            caio.PM05: (-0.5, 0.5),             # +/-0.5V
+            caio.PM03125: (-0.3125, 0.3125),    # +/-0.3125V
+            caio.PM025: (-0.25, 0.25),          # +/-0.25V
+            caio.PM0125: (-0.125, 0.125),       # +/-0.125V
+            caio.PM01: (-0.1, 0.1),             # +/-0.1V
+            caio.PM005: (-0.05, 0.05),          # +/-0.05V
+            caio.PM0025: (-0.025, 0.025),       # +/-0.025V
+            caio.PM00125: (-0.0125, 0.0125),    # +/-0.0125V
+            caio.PM001: (-0.01, 0.01),          # +/-0.01V
+            caio.P10: (0.0, 10.0),              # 0 ~ 10V       :=50
+            caio.P5: (0.0, 5.0),                # 0 ~ 5V
+            caio.P4095: (0.0, 4.095),           # 0 ~ 4.095V
+            caio.P25: (0.0, 2.5),               # 0 ~ 2.5V
+            caio.P125: (0.0, 1.25),             # 0 ~ 1.25V
+            caio.P1: (0.0, 1.0),                # 0 ~ 1V
+            caio.P05: (0.0, 0.5),               # 0 ~ 0.5V
+            caio.P025: (0.0, 0.25),             # 0 ~ 0.25V
+            caio.P01: (0.0, 0.1),               # 0 ~ 0.1V
+            caio.P005: (0.0, 0.05),             # 0 ~ 0.05V
+            caio.P0025: (0.0, 0.025),           # 0 ~ 0.025V
+            caio.P00125: (0.0, 0.0125),         # 0 ~ 0.0125V
+            caio.P001: (0.0, 0.01),             # 0 ~ 0.01V
+            caio.P20MA: (0.0, 20.0),            # 0 ~ 20mA      :=100
+            caio.P4TO20MA: (4.0, 20.0),         # 4 ~ 20mA4
+            caio.PM20MA: (-20.0, 20.0),         # +/-20mA
+            caio.P1TO5: (1.0, 5.0)              # 1 ~ 5V        :=150
+        }
+        
         def __init__(self, index:int):
             ''' clsChannel コンストラクタ
                     Args: 
@@ -94,10 +130,11 @@ class clsAD:
             ''' 
             return self.pFormat.format(self.pAverage[0])# + self.pUnit
     
-        def SetData(self, data:list, cnt:int):
+        def SetData(self, data:np.array, cnt:int):
             ''' 各データ設定メソッド
                     Args: 
-                        data(list): Digital値のlist
+                        data(list): <s>Digital値のlist</s>
+                                    Digital値のnp.array
                         cnt(int): dataの個数
                     Returns: 
                     Note: 
@@ -106,7 +143,7 @@ class clsAD:
                         ※.pVoltはオミット
             ''' 
             self._count = cnt
-            self.pData = np.array(data)
+            self.pData = data
             self.pAverage[1] = self.pData.sum() / self.pData.size   # digital ave.
             self.pAverage[0] = self._toValue(self.pAverage[1])      # value ave
             self.pValue = self._toValue(self.pData)                 # value
@@ -156,107 +193,11 @@ class clsAD:
                         指定レンジの(最小値,最大値)を返す
                     Note: 
                         一応、全レンジ対応(してるはず)
+                        2025/07/20 
+                            レンジ変換辞書(_RANGE_MAP)使用
             ''' 
-            mx:float = 10.0
-            mn:float = -10.0
-            match rng:
-                case caio.PM10:       # +/-10V          :=0
-                    mx:float = 10.0
-                    mn:float = mx * -1
-                case caio.PM5:        # +/-5V
-                    mx:float = 5.0
-                    mn:float = mx * -1
-                case caio.PM25:       # +/-2.5V
-                    mx:float = 2.5
-                    mn:float = mx * -1
-                case caio.PM125:      # +/-1.25V
-                    mx:float = 1.25
-                    mn:float = mx * -1
-                case caio.PM1:        # +/-1V
-                    mx:float = 1.0
-                    mn:float = mx * -1
-                case caio.PM0625:     # +/-0.625V
-                    mx:float = 0.625
-                    mn:float = mx * -1
-                case caio.PM05:       # +/-0.5V
-                    mx:float = 0.5
-                    mn:float = mx * -1
-                case caio.PM03125:    # +/-0.3125V
-                    mx:float = 0.3125
-                    mn:float = mx * -1
-                case caio.PM025:      # +/-0.25V
-                    mx:float = 0.25
-                    mn:float = mx * -1
-                case caio.PM0125:     # +/-0.125V
-                    mx:float = 0.125
-                    mn:float = mx * -1
-                case caio.PM01:       # +/-0.1V
-                    mx:float = 0.1
-                    mn:float = mx * -1
-                case caio.PM005:      # +/-0.05V
-                    mx:float = 0.05
-                    mn:float = mx * -1
-                case caio.PM0025:     # +/-0.025V
-                    mx:float = 0.025
-                    mn:float = mx * -1
-                case caio.PM00125:    # +/-0.0125V
-                    mx:float = 0.0125
-                    mn:float = mx * -1
-                case caio.PM001:      # +/-0.01V
-                    mx:float = 0.01
-                    mn:float = mx * -1
-                case caio.P10:        # 0 ~ 10V     :=50
-                    mx:float = 10.0
-                    mn:float = 0.0
-                case caio.P5:         # 0 ~ 5V
-                    mx:float = 5.0
-                    mn:float = 0.0
-                case caio.P4095:      # 0 ~ 4.095V
-                    mx:float = 4.095
-                    mn:float = 0.0
-                case caio.P25:        # 0 ~ 2.5V
-                    mx:float = 2.5
-                    mn:float = 0.0
-                case caio.P125:       # 0 ~ 1.25V
-                    mx:float = 1.25
-                    mn:float = 0.0
-                case caio.P1:         # 0 ~ 1V
-                    mx:float = 1.0
-                    mn:float = 0.0
-                case caio.P05:        # 0 ~ 0.5V
-                    mx:float = 0.5
-                    mn:float = 0.0
-                case caio.P025:       # 0 ~ 0.25V
-                    mx:float = 0.25
-                    mn:float = 0.0
-                case caio.P01:        # 0 ~ 0.1V
-                    mx:float = 0.1
-                    mn:float = 0.0
-                case caio.P005:       # 0 ~ 0.05V
-                    mx:float = 0.05
-                    mn:float = 0.0
-                case caio.P0025:      # 0 ~ 0.025V
-                    mx:float = 0.025
-                    mn:float = 0.0
-                case caio.P00125:     # 0 ~ 0.0125V
-                    mx:float = 0.0125
-                    mn:float = 0.0
-                case caio.P001:       # 0 ~ 0.01V
-                    mx:float = 0.01
-                    mn:float = 0.0
-                case caio.P20MA:      # 0 ~ 20mA        :=100
-                    mx:float = 20.0
-                    mn:float = 0.0
-                case caio.P4TO20MA:   # 4 ~ 20mA
-                    mx:float = 20.0
-                    mn:float = 4.0
-                case caio.PM20MA:     # +/-20mA
-                    mx:float = 20.0
-                    mn:float = mx * -1
-                case caio.P1TO5:      # 1 ~ 5V          :=150
-                    mx:float = 5.0
-                    mn:float = 1.0
-            return mn,mx
+            # 辞書から値を取得。見つからない場合はデフォルト値（例: +/-10V）を返す
+            return self._RANGE_MAP.get(rng, (-10.0, 10.0))
         # end clsChannel
         
     def Open(self, deviceName:str) -> int:
@@ -418,6 +359,8 @@ class clsAD:
                     エラーコードとサンプリング数を返す
                 Note: 
                     self._ADdata[ch][cnt]に生のデジタル値を取得
+                    2025/07/20 
+                        データ変換を効率化(gemini)
         ''' 
         lret = ctypes.c_long()
         smplcnt = ctypes.c_long()
@@ -431,11 +374,24 @@ class clsAD:
         cnt = self._smplsetting["ActualSamplingCount"]
         ch = self._smplsetting["ChannelCount"]
         AiDataType = ctypes.c_long * (cnt * ch)
-        AiData = AiDataType()
-        lret.value = caio.AioGetAiSamplingData (self._pID, ctypes.byref(smplcnt), AiData)
+        AiData_raw = AiDataType()
+        lret.value = caio.AioGetAiSamplingData (self._pID, ctypes.byref(smplcnt), AiData_raw)
         self._ErrorHandler(lret)
         if lret.value:
             return lret.value
+        
+        #`ctypes`の配列をNumpy配列に変換し、`reshape`と転置(`.T`)を使って効率的にデータを再構成します。
+        # [ch0_d1, ch1_d1, ..., ch0_d2, ch1_d2, ...] のようになっているデータを
+        # [[ch0_d1, ch0_d2, ...], [ch1_d1, ch1_d2, ...]] の形に変換
+        np_data = np.array(AiData_raw, dtype=np.int32).reshape(cnt, ch).T
+        
+        # 各チャンネルにデータをセット
+        for i in range(ch):
+            # self.pCh[i].SetData(list(np_data[i]), cnt) # 元のSetDataに合わせるならリスト化
+            self.pCh[i].SetData(np_data[i], cnt) # SetDataがNumpy配列を直接受け取れるならこちらが効率的
+
+        self._ADdata = np_data.tolist() # 元のコードに合わせてリストとして保持する場合
+        '''
         # self._ADdata:list = [[0]*cnt] * ch この宣言の仕方では想定どうりに動かない
         self._ADdata = [[0] * cnt for i in range(ch)]  # _ADdata[ch][cnt]
         for i in range(ch):
@@ -443,6 +399,7 @@ class clsAD:
                 self._ADdata[i][j] = AiData[(j * ch) + i]
         #for i in range(ch):     # clsChannelにデータをセット
             self.pCh[i].SetData(self._ADdata[i], cnt)
+        '''
             
         return lret.value, cnt  # ErrorCode, SamplingCount
         
@@ -465,6 +422,7 @@ class clsAD:
         self._initialized = True
         return lret.value
 
+    @property
     def pIsBusy(self) -> bool:
         ''' デバイス動作中
                 Args: 
@@ -474,6 +432,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_BUSY)
         
+    @property
     def pIsSttTrgr(self) -> bool:
         ''' 開始トリガ待ち
                 Args: 
@@ -483,6 +442,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_START_TRG)
         
+    @property
     def pIsDataNum(self) -> bool:
         ''' 指定サンプリング回数格納
                 Args: 
@@ -492,6 +452,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_DATA_NUM)
         
+    @property
     def pIsOfErr(self) -> bool:
         ''' オーバーフロー
                 Args: 
@@ -506,6 +467,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_OFERR)
      
+    @property
     def pIsScErr(self) -> bool:
         ''' サンプリングクロック周期エラー
                 Args: 
@@ -516,6 +478,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_SCERR)
         
+    @property
     def pIsAiErr(self) -> bool:
         ''' A/D変換エラー
                 Args: 
@@ -530,6 +493,7 @@ class clsAD:
         ''' 
         return self._GetStatus(caio.AIS_AIERR)
         
+    @property
     def pIsDrvErr(self) -> bool:
         ''' ドライバスペックエラー
                 Args: 

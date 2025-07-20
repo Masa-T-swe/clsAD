@@ -111,7 +111,7 @@ def main():
                 ret = cAD.Start(cnt, 1000, ch, cAD.SAMPLE_ASYNC)
                 dbgprint(f"StartAsync -> {cAD.pErrorStr}")
                 i = 0
-                while cAD.pIsBusy():
+                while cAD.pIsBusy:
                     i += 1
                     if (i % 10000) != 0:
                         print(".", end="")
